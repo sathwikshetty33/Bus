@@ -5,9 +5,9 @@ Uses Groq LLM with tools for conversational booking.
 
 import os
 from typing import List, Optional
+from langchain.agents import create_agent
 from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
-from langgraph.prebuilt import create_react_agent
 
 from .tools import booking_tools
 
@@ -61,6 +61,20 @@ When user asks about wallet:
 When user asks about their bookings:
 - Use `get_user_bookings(user_id)` to show recent bookings
 
+### EXAMPLES:
+
+**User:** "Find buses from Bangalore to Goa"
+**You:** [Call search_buses] → Show available buses with prices ✅
+
+**User:** "Show me seats for schedule 15"
+**You:** [Call get_seat_availability(15)] → Show available seats ✅
+
+**User:** "Show popular cities"
+**You:** [Call get_popular_cities] → Return list ✅
+
+**User:** "What's my wallet balance?"
+**You:** [Call check_wallet_balance(user_id)] → Show balance ✅
+
 ### IMPORTANT NOTES:
 - Always be helpful and conversational
 - If user's request is unclear, ask clarifying questions
@@ -72,27 +86,32 @@ When user asks about their bookings:
 """
 
 
+# Initialize LLM
+groq_api_key = os.getenv("GROQ_API_KEY")
+if groq_api_key:
+    llm = ChatGroq(
+        temperature=0.3,
+        model_name="openai/gpt-oss-120b",
+        api_key=groq_api_key
+    )
+    
+    # Create the agent
+    agent = create_agent(
+        model=llm,
+        tools=booking_tools,
+        system_prompt=SYSTEM_PROMPT
+    )
+else:
+    agent = None
+
+
 class BusBookingAgent:
     """Bus booking agent using LangChain and Groq."""
     
     def __init__(self):
-        # Initialize Groq LLM
-        groq_api_key = os.getenv("GROQ_API_KEY")
-        if not groq_api_key:
+        if agent is None:
             raise ValueError("GROQ_API_KEY environment variable not set")
-        
-        self.llm = ChatGroq(
-            model="llama-3.1-70b-versatile",
-            temperature=0.3,
-            api_key=groq_api_key
-        )
-        
-        # Create the agent using langgraph
-        self.agent = create_react_agent(
-            model=self.llm,
-            tools=booking_tools,
-            state_modifier=SYSTEM_PROMPT
-        )
+        self.agent = agent
     
     def chat(
         self,
@@ -136,9 +155,8 @@ class BusBookingAgent:
             
             # Extract the final response
             if result and "messages" in result:
-                last_message = result["messages"][-1]
-                if hasattr(last_message, "content"):
-                    return last_message.content
+                final_message = result["messages"][-1].content
+                return final_message
             
             return "I apologize, but I couldn't process your request. Please try again."
             
