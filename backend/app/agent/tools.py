@@ -5,7 +5,6 @@ LangChain tools for the bus booking AI agent.
 from langchain_core.tools import tool
 from sqlalchemy.orm import Session, joinedload
 from datetime import date, datetime
-from typing import Optional, List
 import json
 
 from ..database import SessionLocal
@@ -206,7 +205,7 @@ def get_seat_availability(schedule_id: int) -> str:
             "total_seats": len(schedule.seats),
             "available": len(available_seats),
             "booked": len(booked_seats),
-            "available_seats": seat_list[:20]  # Limit to 20 for readability
+            "available_seats": seat_list[:20]
         }, indent=2)
     finally:
         db.close()
@@ -277,11 +276,10 @@ def check_wallet_balance(user_id: int) -> str:
 def book_seats(
     user_id: int,
     schedule_id: int,
-    seat_ids: List[int],
-    passenger_names: List[str],
-    passenger_ages: List[int],
-    passenger_genders: List[str],
-    use_wallet: bool = True
+    seat_ids_json: str,
+    passenger_names_json: str,
+    passenger_ages_json: str,
+    passenger_genders_json: str
 ) -> str:
     """
     Book seats on a bus and pay from wallet.
@@ -289,17 +287,22 @@ def book_seats(
     Args:
         user_id: The user's ID
         schedule_id: The bus schedule ID
-        seat_ids: List of seat IDs to book
-        passenger_names: List of passenger names (one per seat)
-        passenger_ages: List of passenger ages (one per seat)
-        passenger_genders: List of passenger genders ('male', 'female', 'other')
-        use_wallet: Whether to pay from wallet (default: True)
+        seat_ids_json: JSON string of seat IDs to book, e.g. "[1, 2, 3]"
+        passenger_names_json: JSON string of passenger names, e.g. '["John", "Jane"]'
+        passenger_ages_json: JSON string of passenger ages, e.g. "[25, 30]"
+        passenger_genders_json: JSON string of genders, e.g. '["male", "female"]'
     
     Returns:
         Booking confirmation with booking code or error message
     """
     db = get_db_session()
     try:
+        # Parse JSON inputs
+        seat_ids = json.loads(seat_ids_json)
+        passenger_names = json.loads(passenger_names_json)
+        passenger_ages = json.loads(passenger_ages_json)
+        passenger_genders = json.loads(passenger_genders_json)
+        
         # Validate inputs
         if len(seat_ids) != len(passenger_names) or len(seat_ids) != len(passenger_ages):
             return "Error: Number of seat_ids, passenger_names, and passenger_ages must match"
@@ -332,27 +335,26 @@ def book_seats(
             seats_to_book.append(seat)
             total_amount += seat.price
         
-        # Check wallet balance if using wallet
-        if use_wallet:
-            wallet = db.query(Wallet).filter(Wallet.user_id == user_id).first()
-            
-            if not wallet:
-                return "Error: Wallet not found. Please add money to wallet first."
-            
-            if wallet.balance < total_amount:
-                return f"Error: Insufficient wallet balance. Required: ₹{total_amount:.2f}, Available: ₹{wallet.balance:.2f}"
-            
-            # Deduct from wallet
-            wallet.balance -= total_amount
-            
-            # Create wallet transaction
-            transaction = Transaction(
-                wallet_id=wallet.id,
-                type="debit",
-                amount=total_amount,
-                description=f"Bus booking: {schedule.route.from_city.name} to {schedule.route.to_city.name}"
-            )
-            db.add(transaction)
+        # Check wallet balance
+        wallet = db.query(Wallet).filter(Wallet.user_id == user_id).first()
+        
+        if not wallet:
+            return "Error: Wallet not found. Please add money to wallet first."
+        
+        if wallet.balance < total_amount:
+            return f"Error: Insufficient wallet balance. Required: ₹{total_amount:.2f}, Available: ₹{wallet.balance:.2f}"
+        
+        # Deduct from wallet
+        wallet.balance -= total_amount
+        
+        # Create wallet transaction
+        transaction = Transaction(
+            wallet_id=wallet.id,
+            type="debit",
+            amount=total_amount,
+            description=f"Bus booking: {schedule.route.from_city.name} to {schedule.route.to_city.name}"
+        )
+        db.add(transaction)
         
         # Generate booking code
         import random
@@ -366,7 +368,7 @@ def book_seats(
             booking_code=booking_code,
             total_amount=total_amount,
             status="confirmed",
-            payment_method="wallet" if use_wallet else "pending",
+            payment_method="wallet",
             booking_source="agent"
         )
         db.add(booking)
@@ -383,8 +385,6 @@ def book_seats(
                 passenger_gender=passenger_genders[i] if i < len(passenger_genders) else "male"
             )
             db.add(passenger)
-            
-            # Mark seat as unavailable
             seat.is_available = False
             
             passenger_details.append({
@@ -393,7 +393,6 @@ def book_seats(
                 "age": passenger_ages[i]
             })
         
-        # Update available seats count
         schedule.available_seats -= len(seats_to_book)
         
         db.commit()
@@ -407,10 +406,8 @@ def book_seats(
                 "date": str(schedule.travel_date),
                 "departure": str(schedule.departure_time)[:5],
                 "operator": schedule.bus.operator.name,
-                "bus_type": schedule.bus.bus_type,
                 "passengers": passenger_details,
-                "total_paid": total_amount,
-                "payment_method": "wallet" if use_wallet else "pending"
+                "total_paid": total_amount
             }
         }, indent=2)
         
