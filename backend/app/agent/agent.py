@@ -5,9 +5,9 @@ Uses Groq LLM with tools for conversational booking.
 
 import os
 from typing import List, Optional
-from langchain.agents import create_agent
 from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from langgraph.prebuilt import create_react_agent
 
 from .tools import booking_tools
 
@@ -86,23 +86,23 @@ When user asks about their bookings:
 """
 
 
-# Initialize LLM
+# Initialize LLM and agent at module level
 groq_api_key = os.getenv("GROQ_API_KEY")
+agent = None
+
 if groq_api_key:
     llm = ChatGroq(
         temperature=0.3,
-        model_name="openai/gpt-oss-120b",
+        model="openai/gpt-oss-120b",
         api_key=groq_api_key
     )
     
-    # Create the agent
-    agent = create_agent(
+    # Create the agent using langgraph
+    agent = create_react_agent(
         model=llm,
         tools=booking_tools,
-        system_prompt=SYSTEM_PROMPT
+        state_modifier=SYSTEM_PROMPT
     )
-else:
-    agent = None
 
 
 class BusBookingAgent:
@@ -122,15 +122,6 @@ class BusBookingAgent:
     ) -> str:
         """
         Process a chat message and return the agent's response.
-        
-        Args:
-            message: User's message
-            user_id: User's ID for database operations
-            session_id: Chat session ID for memory
-            chat_history: Previous messages in the conversation
-        
-        Returns:
-            Agent's response text
         """
         try:
             # Build messages list
@@ -138,7 +129,7 @@ class BusBookingAgent:
             
             # Add chat history if available
             if chat_history:
-                for msg in chat_history[-10:]:  # Keep last 10 messages
+                for msg in chat_history[-10:]:
                     if msg["role"] == "user":
                         messages.append(HumanMessage(content=msg["content"]))
                     elif msg["role"] == "assistant":
@@ -167,7 +158,6 @@ class BusBookingAgent:
             return f"I encountered an error: {str(e)}. Please try again."
 
 
-# Singleton instance
 _agent_instance: Optional[BusBookingAgent] = None
 
 
