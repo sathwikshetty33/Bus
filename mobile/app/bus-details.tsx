@@ -98,6 +98,9 @@ export default function BusDetailsScreen() {
     return { bg: '#fff', border: '#E5E7EB' };
   };
 
+  // Check if this is a sleeper bus
+  const isSleeper = schedule?.bus.bus_type.toLowerCase().includes('sleeper');
+
   if (loading) {
     return (
       <View style={styles.centerContainer}>
@@ -151,7 +154,7 @@ export default function BusDetailsScreen() {
                 </View>
                 
                 {/* Aisle */}
-                <View style={styles.aisle} />
+                <View style={[styles.aisle, isSleeper && styles.sleeperAisle]} />
                 
                 {/* Right side seats */}
                 <View style={styles.sideSeats}>
@@ -168,31 +171,73 @@ export default function BusDetailsScreen() {
     const seatStyle = getSeatStyle(seat);
     const isSelected = selectedSeats.find((s) => s.id === seat.id);
     
-    return (
-      <TouchableOpacity
-        key={seat.id}
-        style={[
-          styles.seat,
-          { backgroundColor: seatStyle.bg, borderColor: seatStyle.border },
-          seat.is_window && styles.windowSeat,
-        ]}
-        onPress={() => toggleSeat(seat)}
-        disabled={!seat.is_available}
-      >
-        <Text
+    if (isSleeper) {
+      // Sleeper seat - horizontal rectangle (bed shape)
+      return (
+        <TouchableOpacity
+          key={seat.id}
           style={[
-            styles.seatNumber,
-            !seat.is_available && styles.unavailableSeatText,
-            isSelected && styles.selectedSeatText,
+            styles.sleeperSeat,
+            { backgroundColor: seatStyle.bg, borderColor: seatStyle.border },
           ]}
+          onPress={() => toggleSeat(seat)}
+          disabled={!seat.is_available}
         >
-          {seat.seat_number}
-        </Text>
-        {seat.is_window && (
-          <View style={[styles.windowIndicator, isSelected && { backgroundColor: '#fff' }]} />
-        )}
-      </TouchableOpacity>
-    );
+          <View style={styles.sleeperContent}>
+            {/* Pillow icon */}
+            <View style={[
+              styles.pillow, 
+              !seat.is_available && { backgroundColor: '#D1D5DB' },
+              isSelected && { backgroundColor: 'rgba(255,255,255,0.3)' }
+            ]} />
+            <Text
+              style={[
+                styles.sleeperSeatNumber,
+                !seat.is_available && styles.unavailableSeatText,
+                isSelected && styles.selectedSeatText,
+              ]}
+            >
+              {seat.seat_number}
+            </Text>
+          </View>
+          {seat.is_window && (
+            <View style={[styles.sleeperWindowIndicator, isSelected && { backgroundColor: '#fff' }]} />
+          )}
+        </TouchableOpacity>
+      );
+    } else {
+      // Seater seat - square with chair icon
+      return (
+        <TouchableOpacity
+          key={seat.id}
+          style={[
+            styles.seaterSeat,
+            { backgroundColor: seatStyle.bg, borderColor: seatStyle.border },
+          ]}
+          onPress={() => toggleSeat(seat)}
+          disabled={!seat.is_available}
+        >
+          {/* Chair back */}
+          <View style={[
+            styles.chairBack,
+            !seat.is_available && { backgroundColor: '#D1D5DB' },
+            isSelected && { backgroundColor: 'rgba(255,255,255,0.4)' }
+          ]} />
+          <Text
+            style={[
+              styles.seaterSeatNumber,
+              !seat.is_available && styles.unavailableSeatText,
+              isSelected && styles.selectedSeatText,
+            ]}
+          >
+            {seat.seat_number}
+          </Text>
+          {seat.is_window && (
+            <View style={[styles.windowIndicator, isSelected && { backgroundColor: '#fff' }]} />
+          )}
+        </TouchableOpacity>
+      );
+    }
   };
 
   const lowerDeck = seats.filter((s) => s.deck === 'lower');
@@ -232,9 +277,22 @@ export default function BusDetailsScreen() {
         end={{ x: 1, y: 0 }}
         style={styles.header}
       >
-        <Text style={styles.operatorName}>{schedule.bus.operator.name}</Text>
+        <View style={styles.headerTop}>
+          <Text style={styles.operatorName}>{schedule.bus.operator.name}</Text>
+          <View style={[styles.busTypeBadge, isSleeper ? styles.sleeperBadge : styles.seaterBadge]}>
+            <FontAwesome 
+              name={isSleeper ? "bed" : "user"} 
+              size={10} 
+              color="#fff" 
+              style={{ marginRight: 4 }} 
+            />
+            <Text style={styles.busTypeBadgeText}>
+              {schedule.bus.bus_type.toUpperCase()}
+            </Text>
+          </View>
+        </View>
         <Text style={styles.busInfo}>
-          {schedule.bus.bus_type.toUpperCase()} • {schedule.bus.seat_layout} Layout
+          {schedule.bus.seat_layout} Layout • {schedule.bus.bus_number}
         </Text>
         <View style={styles.routeInfo}>
           <Text style={styles.routeText}>
@@ -274,26 +332,44 @@ export default function BusDetailsScreen() {
             {/* Legend */}
             <View style={styles.legend}>
               <View style={styles.legendItem}>
-                <View style={[styles.legendBox, { backgroundColor: '#fff', borderWidth: 1, borderColor: '#E5E7EB' }]} />
+                {isSleeper ? (
+                  <View style={[styles.legendSleeper, { backgroundColor: '#fff', borderWidth: 1, borderColor: '#E5E7EB' }]} />
+                ) : (
+                  <View style={[styles.legendSeater, { backgroundColor: '#fff', borderWidth: 1, borderColor: '#E5E7EB' }]} />
+                )}
                 <Text style={styles.legendText}>Available</Text>
               </View>
               <View style={styles.legendItem}>
-                <View style={[styles.legendBox, { backgroundColor: Colors.success }]} />
+                {isSleeper ? (
+                  <View style={[styles.legendSleeper, { backgroundColor: Colors.success }]} />
+                ) : (
+                  <View style={[styles.legendSeater, { backgroundColor: Colors.success }]} />
+                )}
                 <Text style={styles.legendText}>Selected</Text>
               </View>
               <View style={styles.legendItem}>
-                <View style={[styles.legendBox, { backgroundColor: '#E5E7EB' }]} />
+                {isSleeper ? (
+                  <View style={[styles.legendSleeper, { backgroundColor: '#E5E7EB' }]} />
+                ) : (
+                  <View style={[styles.legendSeater, { backgroundColor: '#E5E7EB' }]} />
+                )}
                 <Text style={styles.legendText}>Booked</Text>
               </View>
               <View style={styles.legendItem}>
-                <View style={[styles.legendBox, { backgroundColor: '#FCE7F3' }]} />
+                {isSleeper ? (
+                  <View style={[styles.legendSleeper, { backgroundColor: '#FCE7F3' }]} />
+                ) : (
+                  <View style={[styles.legendSeater, { backgroundColor: '#FCE7F3' }]} />
+                )}
                 <Text style={styles.legendText}>Ladies</Text>
               </View>
             </View>
 
             {lowerDeck.length > 0 && (
               <View style={styles.deckSection}>
-                <Text style={styles.deckTitle}>Lower Deck</Text>
+                <Text style={styles.deckTitle}>
+                  {isSleeper ? '🛏️ Lower Deck' : '💺 Seats'}
+                </Text>
                 <View style={styles.deckContainer}>
                   {renderSeatMap(lowerDeck)}
                 </View>
@@ -302,7 +378,7 @@ export default function BusDetailsScreen() {
             
             {upperDeck.length > 0 && (
               <View style={styles.deckSection}>
-                <Text style={styles.deckTitle}>Upper Deck</Text>
+                <Text style={styles.deckTitle}>🛏️ Upper Deck</Text>
                 <View style={styles.deckContainer}>
                   {renderSeatMap(upperDeck)}
                 </View>
@@ -338,7 +414,7 @@ export default function BusDetailsScreen() {
       <View style={styles.bottomBar}>
         <View style={styles.selectionInfo}>
           <Text style={styles.selectedCount}>
-            {selectedSeats.length} seat{selectedSeats.length !== 1 ? 's' : ''} selected
+            {selectedSeats.length} {isSleeper ? 'berth' : 'seat'}{selectedSeats.length !== 1 ? 's' : ''} selected
           </Text>
           <Text style={styles.totalAmount}>₹{getTotalAmount().toFixed(0)}</Text>
         </View>
@@ -377,10 +453,35 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingTop: 16,
   },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   operatorName: {
     fontSize: 20,
     fontWeight: 'bold',
     color: '#fff',
+    flex: 1,
+  },
+  busTypeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+  },
+  sleeperBadge: {
+    backgroundColor: '#7C3AED',
+  },
+  seaterBadge: {
+    backgroundColor: '#2563EB',
+  },
+  busTypeBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#fff',
+    letterSpacing: 0.5,
   },
   busInfo: {
     fontSize: 13,
@@ -439,9 +540,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  legendBox: {
+  legendSeater: {
     width: 18,
     height: 18,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  legendSleeper: {
+    width: 28,
+    height: 14,
     borderRadius: 4,
     marginRight: 6,
   },
@@ -495,41 +602,92 @@ const styles = StyleSheet.create({
   seatRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 8,
   },
   sideSeats: {
     flexDirection: 'row',
   },
   aisle: {
-    width: 30,
-    height: 40,
-  },
-  seat: {
-    width: 44,
+    width: 24,
     height: 44,
-    marginHorizontal: 4,
+  },
+  sleeperAisle: {
+    width: 20,
+    height: 36,
+  },
+  // Seater seat styles (chair-like)
+  seaterSeat: {
+    width: 44,
+    height: 48,
+    marginHorizontal: 3,
     borderRadius: 8,
+    borderWidth: 1.5,
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    paddingBottom: 6,
+    position: 'relative',
+  },
+  chairBack: {
+    position: 'absolute',
+    top: 4,
+    left: 6,
+    right: 6,
+    height: 10,
+    borderTopLeftRadius: 4,
+    borderTopRightRadius: 4,
+    backgroundColor: '#E5E7EB',
+  },
+  seaterSeatNumber: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#374151',
+  },
+  // Sleeper seat styles (bed-like)
+  sleeperSeat: {
+    width: 70,
+    height: 36,
+    marginHorizontal: 3,
+    marginVertical: 2,
+    borderRadius: 6,
     borderWidth: 1.5,
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
   },
-  windowSeat: {
-    borderRadius: 8,
+  sleeperContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+  },
+  pillow: {
+    width: 12,
+    height: 18,
+    borderRadius: 3,
+    backgroundColor: '#E5E7EB',
+    marginRight: 6,
+  },
+  sleeperSeatNumber: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#374151',
+  },
+  sleeperWindowIndicator: {
+    position: 'absolute',
+    top: 3,
+    right: 3,
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: '#60A5FA',
   },
   windowIndicator: {
     position: 'absolute',
-    top: 2,
-    right: 2,
+    top: 3,
+    right: 3,
     width: 6,
     height: 6,
     borderRadius: 3,
     backgroundColor: '#60A5FA',
-  },
-  seatNumber: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#374151',
   },
   unavailableSeatText: {
     color: '#9CA3AF',

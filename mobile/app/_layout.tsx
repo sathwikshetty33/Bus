@@ -76,6 +76,13 @@ function RootLayoutNav() {
               headerBackTitle: 'Back',
             }} 
           />
+          <Stack.Screen 
+            name="chat" 
+            options={{ 
+              headerShown: false,
+              presentation: 'modal',
+            }} 
+          />
           <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
         </Stack>
       </ThemeProvider>

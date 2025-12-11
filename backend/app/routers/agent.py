@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional, List
 import uuid
+import os
 from ..database import get_db
 from ..models.user import User
 from ..models.chat import ChatSession, ChatMessage
@@ -73,9 +74,34 @@ async def chat_with_agent(
     db.add(user_message)
     db.commit()
     
-    # TODO: Integrate with LangChain agent
-    # For now, return a placeholder response
-    response_text = f"I received your message: '{request.message}'. The AI agent integration with Groq/LangChain is coming soon! You'll be able to search and book buses conversationally."
+    # Get chat history for context
+    history_messages = db.query(ChatMessage).filter(
+        ChatMessage.session_id == session.id
+    ).order_by(ChatMessage.created_at).all()
+    
+    chat_history = [
+        {"role": m.role, "content": m.content}
+        for m in history_messages[:-1]  # Exclude the just-added user message
+    ]
+    
+    # Check if GROQ_API_KEY is available
+    if not os.getenv("GROQ_API_KEY"):
+        response_text = "⚠️ AI Agent is not configured. Please set GROQ_API_KEY environment variable."
+    else:
+        try:
+            # Import and use the agent
+            from ..agent import get_agent
+            
+            agent = get_agent()
+            response_text = await agent.chat(
+                message=request.message,
+                user_id=current_user.id,
+                session_id=session.session_id,
+                chat_history=chat_history
+            )
+        except Exception as e:
+            print(f"Agent error: {str(e)}")
+            response_text = f"I encountered an error processing your request. Please try again. Error: {str(e)}"
     
     # Save assistant response
     assistant_message = ChatMessage(
