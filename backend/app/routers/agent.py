@@ -195,3 +195,146 @@ async def end_chat_session(
     db.commit()
     
     return {"message": "Session ended successfully"}
+
+
+class TranscriptionResponse(BaseModel):
+    """Response schema for transcription."""
+    text: str
+    language: Optional[str] = None
+
+
+@router.post("/transcribe", response_model=TranscriptionResponse)
+async def transcribe_audio(
+    audio_file: bytes,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Transcribe audio using Groq's Whisper model.
+    Supports multiple languages including English, Hindi, Kannada, and Telugu.
+    """
+    import httpx
+    import base64
+    import tempfile
+    
+    groq_api_key = os.getenv("GROQ_API_KEY")
+    if not groq_api_key:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Transcription service not configured. GROQ_API_KEY not set."
+        )
+    
+    try:
+        # Create a temporary file for the audio
+        with tempfile.NamedTemporaryFile(suffix=".m4a", delete=False) as tmp_file:
+            tmp_file.write(audio_file)
+            tmp_file_path = tmp_file.name
+        
+        # Call Groq's Whisper API
+        async with httpx.AsyncClient() as client:
+            with open(tmp_file_path, "rb") as f:
+                response = await client.post(
+                    "https://api.groq.com/openai/v1/audio/transcriptions",
+                    headers={
+                        "Authorization": f"Bearer {groq_api_key}",
+                    },
+                    files={
+                        "file": ("audio.m4a", f, "audio/m4a"),
+                    },
+                    data={
+                        "model": "whisper-large-v3",
+                        "response_format": "json",
+                    },
+                    timeout=60.0
+                )
+        
+        # Clean up temp file
+        import os as os_module
+        os_module.unlink(tmp_file_path)
+        
+        if response.status_code != 200:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Transcription failed: {response.text}"
+            )
+        
+        result = response.json()
+        return TranscriptionResponse(
+            text=result.get("text", ""),
+            language=result.get("language")
+        )
+        
+    except httpx.TimeoutException:
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail="Transcription timed out. Please try again."
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Transcription error: {str(e)}"
+        )
+
+
+from fastapi import File, UploadFile
+
+@router.post("/transcribe-upload", response_model=TranscriptionResponse)
+async def transcribe_audio_upload(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Transcribe uploaded audio file using Groq's Whisper model.
+    Supports multiple languages including English, Hindi, Kannada, and Telugu.
+    """
+    import httpx
+    
+    groq_api_key = os.getenv("GROQ_API_KEY")
+    if not groq_api_key:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Transcription service not configured. GROQ_API_KEY not set."
+        )
+    
+    try:
+        # Read the uploaded file
+        audio_content = await file.read()
+        
+        # Call Groq's Whisper API
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "https://api.groq.com/openai/v1/audio/transcriptions",
+                headers={
+                    "Authorization": f"Bearer {groq_api_key}",
+                },
+                files={
+                    "file": (file.filename or "audio.m4a", audio_content, file.content_type or "audio/m4a"),
+                },
+                data={
+                    "model": "whisper-large-v3",
+                    "response_format": "json",
+                },
+                timeout=60.0
+            )
+        
+        if response.status_code != 200:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Transcription failed: {response.text}"
+            )
+        
+        result = response.json()
+        return TranscriptionResponse(
+            text=result.get("text", ""),
+            language=result.get("language")
+        )
+        
+    except httpx.TimeoutException:
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail="Transcription timed out. Please try again."
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Transcription error: {str(e)}"
+        )

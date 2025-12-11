@@ -52,5 +52,31 @@ export const chatService = {
    */
   endSession: async (sessionId: string): Promise<void> => {
     await api.delete(`/agent/sessions/${sessionId}`);
+  },
+
+  /**
+   * Transcribe audio to text using Groq Whisper
+   */
+  transcribeAudio: async (audioUri: string): Promise<{ text: string; language?: string }> => {
+    const formData = new FormData();
+    
+    // Get file info from URI
+    const filename = audioUri.split('/').pop() || 'audio.m4a';
+    
+    // Append file to form data
+    formData.append('file', {
+      uri: audioUri,
+      type: 'audio/m4a',
+      name: filename,
+    } as any);
+    
+    const response = await api.post('/agent/transcribe-upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+      timeout: 60000, // 60 seconds for transcription
+    });
+    
+    return response.data;
   }
 };
