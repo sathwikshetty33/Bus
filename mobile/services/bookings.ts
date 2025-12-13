@@ -1,5 +1,5 @@
 import api from './api';
-import { Booking, BookingCreateParams } from '../types';
+import { Booking, BookingCreateParams, BookingDetail } from '../types';
 
 interface BookingListResponse {
   bookings: Booking[];
@@ -28,6 +28,12 @@ export const bookingService = {
   // Cancel a booking
   cancelBooking: async (bookingId: number): Promise<Booking> => {
     const response = await api.post<Booking>(`/bookings/${bookingId}/cancel`);
+    return response.data;
+  },
+
+  // Get detailed booking with tracking info (boarding/dropping points)
+  getBookingDetails: async (bookingId: number): Promise<BookingDetail> => {
+    const response = await api.get<BookingDetail>(`/bookings/${bookingId}/details`);
     return response.data;
   },
 };

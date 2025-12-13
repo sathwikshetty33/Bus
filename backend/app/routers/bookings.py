@@ -7,10 +7,14 @@ import string
 from datetime import datetime
 from ..database import get_db
 from ..models.user import User
-from ..models.bus import BusSchedule, Seat
+from ..models.bus import BusSchedule, Seat, BoardingPoint, DroppingPoint
 from ..models.booking import Booking, BookingPassenger
 from ..models.wallet import Wallet, Transaction
-from ..schemas.booking import BookingCreate, BookingResponse, BookingListResponse, BookingPassengerResponse
+from ..schemas.booking import (
+    BookingCreate, BookingResponse, BookingListResponse, 
+    BookingPassengerResponse, BookingDetailResponse,
+    BoardingPointInfo, DroppingPointInfo
+)
 from ..utils.dependencies import get_current_user
 
 router = APIRouter(prefix="/bookings", tags=["Bookings"])
@@ -268,6 +272,103 @@ async def get_booking(
         departure_time=str(schedule.departure_time) if schedule else None,
         arrival_time=str(schedule.arrival_time) if schedule else None,
         passengers=passengers_response
+    )
+
+
+@router.get("/{booking_id}/details", response_model=BookingDetailResponse)
+async def get_booking_details(
+    booking_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get detailed booking info with tracking (boarding/dropping points)."""
+    booking = db.query(Booking).options(
+        joinedload(Booking.passengers),
+        joinedload(Booking.bus_schedule).joinedload(BusSchedule.bus),
+        joinedload(Booking.bus_schedule).joinedload(BusSchedule.route)
+    ).filter(
+        Booking.id == booking_id,
+        Booking.user_id == current_user.id
+    ).first()
+    
+    if not booking:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Booking not found"
+        )
+    
+    schedule = booking.bus_schedule
+    bus = schedule.bus if schedule else None
+    route = schedule.route if schedule else None
+    
+    # Get passengers with seat info
+    passengers_response = []
+    for bp in booking.passengers:
+        seat = db.query(Seat).filter(Seat.id == bp.seat_id).first()
+        passengers_response.append(BookingPassengerResponse(
+            id=bp.id,
+            seat_id=bp.seat_id,
+            seat_number=seat.seat_number if seat else "N/A",
+            passenger_name=bp.passenger_name,
+            passenger_age=bp.passenger_age,
+            passenger_gender=bp.passenger_gender
+        ))
+    
+    # Get boarding points
+    boarding_points = []
+    if schedule:
+        bps = db.query(BoardingPoint).filter(
+            BoardingPoint.bus_schedule_id == schedule.id
+        ).order_by(BoardingPoint.time).all()
+        for bp in bps:
+            boarding_points.append(BoardingPointInfo(
+                id=bp.id,
+                name=bp.name,
+                time=str(bp.time),
+                address=bp.address,
+                landmark=bp.landmark
+            ))
+    
+    # Get dropping points
+    dropping_points = []
+    if schedule:
+        dps = db.query(DroppingPoint).filter(
+            DroppingPoint.bus_schedule_id == schedule.id
+        ).order_by(DroppingPoint.time).all()
+        for dp in dps:
+            dropping_points.append(DroppingPointInfo(
+                id=dp.id,
+                name=dp.name,
+                time=str(dp.time),
+                address=dp.address,
+                landmark=dp.landmark
+            ))
+    
+    return BookingDetailResponse(
+        id=booking.id,
+        booking_code=booking.booking_code,
+        total_amount=booking.total_amount,
+        status=booking.status,
+        payment_method=booking.payment_method,
+        booking_source=booking.booking_source,
+        booked_at=booking.booked_at,
+        cancelled_at=booking.cancelled_at,
+        bus_schedule_id=booking.bus_schedule_id,
+        bus_number=bus.bus_number if bus else None,
+        bus_type=bus.bus_type if bus else None,
+        operator_name=bus.operator.name if bus and bus.operator else None,
+        operator_rating=bus.operator.rating if bus and bus.operator else None,
+        amenities=bus.amenities if bus else None,
+        from_city=route.from_city.name if route and route.from_city else None,
+        to_city=route.to_city.name if route and route.to_city else None,
+        distance_km=route.distance_km if route else None,
+        duration_minutes=route.duration_minutes if route else None,
+        travel_date=str(schedule.travel_date) if schedule else None,
+        departure_time=str(schedule.departure_time) if schedule else None,
+        arrival_time=str(schedule.arrival_time) if schedule else None,
+        passengers=passengers_response,
+        boarding_points=boarding_points,
+        dropping_points=dropping_points
     )
 
 

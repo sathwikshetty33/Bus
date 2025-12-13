@@ -42,28 +42,48 @@ const parseTable = (lines: string[]): { headers: string[]; rows: string[][] } | 
   return { headers, rows };
 };
 
-const TableComponent = ({ headers, rows }: { headers: string[]; rows: string[][] }) => (
-  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tableScroll}>
-    <View style={styles.table}>
-      <View style={styles.tableHeaderRow}>
-        {headers.map((header, i) => (
-          <View key={i} style={[styles.tableCell, styles.tableHeaderCell]}>
-            <Text style={styles.tableHeaderText}>{header.replace(/\*\*/g, '')}</Text>
-          </View>
-        ))}
-      </View>
-      {rows.map((row, rowIdx) => (
-        <View key={rowIdx} style={[styles.tableRow, rowIdx % 2 === 1 && styles.tableRowAlt]}>
-          {row.map((cell, cellIdx) => (
-            <View key={cellIdx} style={styles.tableCell}>
-              <Text style={styles.tableCellText}>{cell.replace(/\*\*/g, '')}</Text>
+const TableComponent = ({ headers, rows }: { headers: string[]; rows: string[][] }) => {
+  // Calculate width based on maximum content length in each column
+  const getColumnWidth = (colIndex: number) => {
+    const headerText = (headers[colIndex] || '').replace(/\*\*/g, '').trim();
+    let maxLen = headerText.length;
+    
+    // Check all row values for this column
+    rows.forEach(row => {
+      const cellText = (row[colIndex] || '').replace(/\*\*/g, '').trim();
+      if (cellText.length > maxLen) maxLen = cellText.length;
+    });
+    
+    // Calculate width: 10px per character + padding
+    return Math.max(60, maxLen * 9 + 24);
+  };
+
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator={true} style={styles.tableScroll}>
+      <View style={styles.table}>
+        {/* Header row */}
+        <View style={styles.tableHeaderRow}>
+          {headers.map((header, i) => (
+            <View key={i} style={[styles.tableCell, styles.tableHeaderCell, { width: getColumnWidth(i) }]}>
+              <Text style={styles.tableHeaderText}>{header.replace(/\*\*/g, '')}</Text>
             </View>
           ))}
         </View>
-      ))}
-    </View>
-  </ScrollView>
-);
+        {/* Data rows */}
+        {rows.map((row, rowIdx) => (
+          <View key={rowIdx} style={[styles.tableRow, rowIdx % 2 === 1 && styles.tableRowAlt]}>
+            {row.map((cell, cellIdx) => (
+              <View key={cellIdx} style={[styles.tableCell, { width: getColumnWidth(cellIdx) }]}>
+                <Text style={styles.tableCellText}>{cell.replace(/\*\*/g, '')}</Text>
+              </View>
+            ))}
+          </View>
+        ))}
+      </View>
+    </ScrollView>
+  );
+};
+
 
 const FormattedText = ({ text, isUser }: { text: string; isUser: boolean }) => {
   const textColor = isUser ? '#fff' : '#1A1A2E';

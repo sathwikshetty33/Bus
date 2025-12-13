@@ -160,3 +160,35 @@ export interface BookingCreateParams {
   passengers: Passenger[];
   payment_method: 'wallet' | 'card' | 'upi';
 }
+
+export interface BookingDetail {
+  id: number;
+  booking_code: string;
+  total_amount: number;
+  status: string;
+  payment_method: string;
+  booking_source: string;
+  booked_at: string;
+  cancelled_at: string | null;
+  bus_schedule_id: number;
+  // Bus info
+  bus_number?: string;
+  bus_type?: string;
+  operator_name?: string;
+  operator_rating?: number;
+  amenities?: string[];
+  // Route info
+  from_city?: string;
+  to_city?: string;
+  distance_km?: number;
+  duration_minutes?: number;
+  // Schedule info
+  travel_date?: string;
+  departure_time?: string;
+  arrival_time?: string;
+  // Passengers
+  passengers: BookingPassenger[];
+  // Tracking - boarding and dropping points
+  boarding_points: BoardingPoint[];
+  dropping_points: DroppingPoint[];
+}

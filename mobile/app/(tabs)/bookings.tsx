@@ -121,7 +121,11 @@ export default function BookingsScreen() {
     const statusStyle = getStatusStyle(item.status);
     
     return (
-      <View style={styles.bookingCard}>
+      <TouchableOpacity 
+        style={styles.bookingCard}
+        onPress={() => router.push(`/ticket-details?id=${item.id}` as any)}
+        activeOpacity={0.7}
+      >
         <View style={styles.bookingHeader}>
           <View>
             <Text style={styles.bookingCode}>{item.booking_code}</Text>
@@ -165,16 +169,12 @@ export default function BookingsScreen() {
 
         <View style={styles.bookingFooter}>
           <Text style={styles.amountText}>₹{item.total_amount.toFixed(0)}</Text>
-          {item.status === 'confirmed' && (
-            <TouchableOpacity
-              style={styles.cancelButton}
-              onPress={() => handleCancelBooking(item.id)}
-            >
-              <Text style={styles.cancelButtonText}>Cancel Booking</Text>
-            </TouchableOpacity>
-          )}
+          <View style={styles.viewDetailsButton}>
+            <Text style={styles.viewDetailsText}>View Details</Text>
+            <FontAwesome name="chevron-right" size={12} color={Colors.primary} style={{ marginLeft: 6 }} />
+          </View>
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -381,6 +381,19 @@ const styles = StyleSheet.create({
   },
   cancelButtonText: {
     color: Colors.error,
+    fontWeight: '600',
+    fontSize: 13,
+  },
+  viewDetailsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  viewDetailsText: {
+    color: Colors.primary,
     fontWeight: '600',
     fontSize: 13,
   },
