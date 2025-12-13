@@ -201,16 +201,41 @@ export default function ChatScreen() {
         return;
       }
 
-      // Configure audio mode for iOS
+      // Configure audio mode
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
       });
 
-      // Use LOW_QUALITY preset for better Expo Go compatibility
-      const { recording: newRecording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.LOW_QUALITY
-      );
+      // Custom recording options for M4A/AAC format (supported by Groq Whisper)
+      const recordingOptions = {
+        isMeteringEnabled: true,
+        android: {
+          extension: '.m4a',
+          outputFormat: 2, // MPEG_4
+          audioEncoder: 3, // AAC
+          sampleRate: 44100,
+          numberOfChannels: 1,
+          bitRate: 128000,
+        },
+        ios: {
+          extension: '.m4a',
+          outputFormat: 'aac' as any,
+          audioQuality: 127, // MAX
+          sampleRate: 44100,
+          numberOfChannels: 1,
+          bitRate: 128000,
+          linearPCMBitDepth: 16,
+          linearPCMIsBigEndian: false,
+          linearPCMIsFloat: false,
+        },
+        web: {
+          mimeType: 'audio/webm',
+          bitsPerSecond: 128000,
+        },
+      };
+
+      const { recording: newRecording } = await Audio.Recording.createAsync(recordingOptions);
       setRecording(newRecording);
       setIsRecording(true);
     } catch (err: any) {
@@ -329,7 +354,11 @@ export default function ChatScreen() {
   ];
 
   return (
-    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90}>
+    <KeyboardAvoidingView 
+      style={styles.container} 
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+    >
       <LinearGradient colors={[Colors.primary, '#FF6B6B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <FontAwesome name="arrow-left" size={18} color="#fff" />
